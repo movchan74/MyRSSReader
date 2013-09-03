@@ -14,6 +14,8 @@
     <string name="update_completed">Update completed</string>
     <string name="action_list_read_unreaded">Unreaded</string>
     <string name="action_list_read_all">All</string>
+    <string name="open_link">View in browser</string>
+    <string name="invalid_url">Invalid URL</string>
 
     <string-array name="action_list_read">
         <item>@string/action_list_read_unreaded</item>

@@ -38,6 +38,7 @@ import android.support.v4.app.FragmentStatePagerAdapter;
 import android.support.v4.view.MenuItemCompat;
 import android.support.v4.view.PagerAdapter;
 import android.support.v4.view.ViewPager;
+import android.support.v4.view.ViewPager.OnPageChangeListener;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.ActionBar.OnNavigationListener;
 import android.support.v7.app.ActionBarActivity;
@@ -64,40 +65,50 @@ public class ViewItemActivity extends ActionBarActivity {
 	private boolean showAll = false;
 	static final int ALL_ITEMS = 0;
 	static final int UNREADED_ITEMS = 1;
-	
+
 
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.view_item_activity);
 		adapter = new RSSDatabaseAdapter(this);
 		source_id = getIntent().getStringExtra("source_id");
-		adapter.open();
-		updateCursor();
 		mPager = (ViewPager) findViewById(R.id.pager);
-//		mPager.setTag()
 		mPagerAdapter = new ScreenSlidePagerAdapter(getSupportFragmentManager());
 		mPager.setAdapter(mPagerAdapter);
 		ActionBar actionBar = getSupportActionBar();
-	    actionBar.setDisplayHomeAsUpEnabled(true);
-	    mSpinnerAdapter =  ArrayAdapter.createFromResource(this, R.array.action_list_read,
-	            android.R.layout.simple_dropdown_item_1line);
+		actionBar.setDisplayHomeAsUpEnabled(true);
+		mPager.setOnPageChangeListener(new OnPageChangeListener() {
+
+			@Override
+			public void onPageSelected(int position) {			
+				if (!showAll && mCurrentCursor.moveToPosition(position-1) && !(mCurrentCursor.isBeforeFirst())) {
+					adapter.setItemAsReaded(mCurrentCursor.getString(mCurrentCursor.getColumnIndex(RSSDatabaseAdapter.KEY_ITEM_ID)));
+				}
+			}
+
+			@Override
+			public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
+			}
+
+			@Override
+			public void onPageScrollStateChanged(int state) {				
+			}
+		});
+		mSpinnerAdapter =  ArrayAdapter.createFromResource(this, R.array.action_list_read, R.layout.dropdown_item);
 		actionBar.setNavigationMode(ActionBar.NAVIGATION_MODE_LIST);
 		mNavigationListener = new OnNavigationListener() {
-			
+
 			@Override
 			public boolean onNavigationItemSelected(int position, long itemId) {
 				String[] list = getResources().getStringArray(R.array.action_list_read);
-				Log.d("item" , list[position]);
 				if (list[position].equals(getResources().getString(R.string.action_list_read_unreaded))) {
 					showAll = false;
-					updateCursor();
-					restartActivity();
+					updatePager();
 					return true;
 				} else {
 					if (list[position].equals(getResources().getString(R.string.action_list_read_all))) {
 						showAll = true;
-						updateCursor();
-						restartActivity();
+						updatePager();
 						return true;
 					}
 				}
@@ -115,29 +126,26 @@ public class ViewItemActivity extends ActionBarActivity {
 
 	@Override
 	public boolean onOptionsItemSelected(MenuItem item) {
-	    // Handle presses on the action bar items
-	    switch (item.getItemId()) {
-	        case R.id.action_update:
-	            updateFeeds();
-	            return true;
-	        default:
-	            return super.onOptionsItemSelected(item);
-	    }
+		// Handle presses on the action bar items
+		switch (item.getItemId()) {
+		case R.id.action_update:
+			updateFeeds();
+			return true;
+		default:
+			return super.onOptionsItemSelected(item);
+		}
 	}
-	
+
 	@Override
 	protected void onResume() {
 		super.onResume();
 		updateCursor();
-//		updateFeeds();
 	}
-	
-	private void restartActivity() {
-	    Intent intent = getIntent();
-	    mPagerAdapter.notifyDataSetChanged();
-//	    intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
-//	    finish();
-//	    startActivity(intent);
+
+	private void updatePager() {
+		updateCursor();
+		mPagerAdapter.notifyDataSetChanged();
+		mPager.setCurrentItem(0);
 	}
 
 	private void updateCursor(){
@@ -151,6 +159,8 @@ public class ViewItemActivity extends ActionBarActivity {
 	@Override
 	protected void onStart() {
 		super.onStart();
+		adapter.open();
+		updatePager();
 	}
 
 	@Override
@@ -248,26 +258,27 @@ public class ViewItemActivity extends ActionBarActivity {
 		public Fragment getItem(int position) {
 			ViewItemFragment fragment = new ViewItemFragment();
 			Bundle args = new Bundle();
-			mCurrentCursor.moveToPosition(position);
-			args.putString("title", mCurrentCursor.getString(mCurrentCursor.getColumnIndex(RSSDatabaseAdapter.KEY_ITEM_TITLE)));
-			args.putString("link", mCurrentCursor.getString(mCurrentCursor.getColumnIndex(RSSDatabaseAdapter.KEY_ITEM_LINK)));
-			args.putString("pubDate", mCurrentCursor.getString(mCurrentCursor.getColumnIndex(RSSDatabaseAdapter.KEY_ITEM_PUBDATE)));
-			args.putString("description", mCurrentCursor.getString(mCurrentCursor.getColumnIndex(RSSDatabaseAdapter.KEY_ITEM_DESCRIPTION)));
-			fragment.setArguments(args);
-//			if (mCurrentCursor.moveToPosition(position-2) && !(mCurrentCursor.isBeforeFirst())) {
-//				adapter.setItemAsReaded(mCurrentCursor.getString(mCurrentCursor.getColumnIndex(RSSDatabaseAdapter.KEY_ITEM_ID)));
-//			}					
+			if  (mCurrentCursor != null) {
+				mCurrentCursor.moveToPosition(position);
+				args.putString("title", mCurrentCursor.getString(mCurrentCursor.getColumnIndex(RSSDatabaseAdapter.KEY_ITEM_TITLE)));
+				args.putString("link", mCurrentCursor.getString(mCurrentCursor.getColumnIndex(RSSDatabaseAdapter.KEY_ITEM_LINK)));
+				args.putString("pubDate", mCurrentCursor.getString(mCurrentCursor.getColumnIndex(RSSDatabaseAdapter.KEY_ITEM_PUBDATE)));
+				args.putString("description", mCurrentCursor.getString(mCurrentCursor.getColumnIndex(RSSDatabaseAdapter.KEY_ITEM_DESCRIPTION)));
+				fragment.setArguments(args);
+			}
 			return fragment;
 		}
-		
+
 		@Override
 		public int getItemPosition(Object object) {
-		    return POSITION_NONE;
+			return POSITION_NONE;
 		}
 
 		@Override
 		public int getCount() {
-			return mCurrentCursor.getCount();
+			if  (mCurrentCursor != null)
+				return mCurrentCursor.getCount();
+			return 0;
 		}
 	}
 }
