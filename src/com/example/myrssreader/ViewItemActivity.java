@@ -139,7 +139,6 @@ public class ViewItemActivity extends ActionBarActivity {
 	@Override
 	protected void onResume() {
 		super.onResume();
-		updateCursor();
 	}
 
 	private void updatePager() {
