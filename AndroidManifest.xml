@@ -36,12 +36,21 @@
             android:theme="@android:style/Theme.Dialog" >
         </activity>
         <activity
+            android:name="com.example.myrssreader.ViewItemListActivity"
+            android:label=""
+            android:theme="@style/Theme.AppCompat.Light.DarkActionBar"
+            android:launchMode="singleTop" >
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value="com.example.myrssreader.MainActivity" />
+        </activity>
+        <activity
             android:name="com.example.myrssreader.ViewItemActivity"
             android:label=""
             android:theme="@style/Theme.AppCompat.Light.DarkActionBar" >
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
-                android:value="com.example.myrssreader.MainActivity" />
+                android:value="com.example.myrssreader.ViewItemListActivity" />
         </activity>
     </application>
 

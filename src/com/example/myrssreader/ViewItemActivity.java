@@ -57,14 +57,11 @@ import android.widget.Toast;
 public class ViewItemActivity extends ActionBarActivity {
 	private RSSDatabaseAdapter adapter;
 	private String source_id;
+	private String item_id;
 	private ViewPager mPager;
 	private PagerAdapter mPagerAdapter;
 	private Cursor mCurrentCursor;
-	private SpinnerAdapter mSpinnerAdapter;
-	private OnNavigationListener mNavigationListener;
 	private boolean showAll = false;
-	static final int ALL_ITEMS = 0;
-	static final int UNREADED_ITEMS = 1;
 
 
 	protected void onCreate(Bundle savedInstanceState) {
@@ -72,7 +69,9 @@ public class ViewItemActivity extends ActionBarActivity {
 		setContentView(R.layout.view_item_activity);
 		adapter = new RSSDatabaseAdapter(this);
 		source_id = getIntent().getStringExtra("source_id");
+		item_id = getIntent().getStringExtra("item_id");
 		mPager = (ViewPager) findViewById(R.id.pager);
+		showAll = getIntent().getBooleanExtra("showAll", false);
 		mPagerAdapter = new ScreenSlidePagerAdapter(getSupportFragmentManager());
 		mPager.setAdapter(mPagerAdapter);
 		ActionBar actionBar = getSupportActionBar();
@@ -80,10 +79,9 @@ public class ViewItemActivity extends ActionBarActivity {
 		mPager.setOnPageChangeListener(new OnPageChangeListener() {
 
 			@Override
-			public void onPageSelected(int position) {			
-				if (!showAll && mCurrentCursor.moveToPosition(position-1) && !(mCurrentCursor.isBeforeFirst())) {
-					adapter.setItemAsReaded(mCurrentCursor.getString(mCurrentCursor.getColumnIndex(RSSDatabaseAdapter.KEY_ITEM_ID)));
-				}
+			public void onPageSelected(int position) {
+				mCurrentCursor.moveToPosition(position);
+				adapter.setItemAsReaded(mCurrentCursor.getString(mCurrentCursor.getColumnIndex(RSSDatabaseAdapter.KEY_ITEM_ID)));
 			}
 
 			@Override
@@ -94,51 +92,29 @@ public class ViewItemActivity extends ActionBarActivity {
 			public void onPageScrollStateChanged(int state) {				
 			}
 		});
-		mSpinnerAdapter =  ArrayAdapter.createFromResource(this, R.array.action_list_read, R.layout.dropdown_item);
-		actionBar.setNavigationMode(ActionBar.NAVIGATION_MODE_LIST);
-		mNavigationListener = new OnNavigationListener() {
-
-			@Override
-			public boolean onNavigationItemSelected(int position, long itemId) {
-				String[] list = getResources().getStringArray(R.array.action_list_read);
-				if (list[position].equals(getResources().getString(R.string.action_list_read_unreaded))) {
-					showAll = false;
-					updatePager();
-					return true;
-				} else {
-					if (list[position].equals(getResources().getString(R.string.action_list_read_all))) {
-						showAll = true;
-						updatePager();
-						return true;
-					}
-				}
-				return false;
-			}
-		};
-		actionBar.setListNavigationCallbacks(mSpinnerAdapter, mNavigationListener);
+		adapter.open();
+		initPager();
 	}
-
+	
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
-		getMenuInflater().inflate(R.menu.view_item_actions, menu);
 		return super.onCreateOptionsMenu(menu);
-	}
-
-	@Override
-	public boolean onOptionsItemSelected(MenuItem item) {
-		// Handle presses on the action bar items
-		switch (item.getItemId()) {
-		case R.id.action_update:
-			updateFeeds();
-			return true;
-		default:
-			return super.onOptionsItemSelected(item);
-		}
 	}
 
 	@Override
 	protected void onResume() {
 		super.onResume();
+	}
+	
+	private void initPager() {
+		updateCursor();
+		mCurrentCursor.moveToFirst();
+		while (!mCurrentCursor.getString(mCurrentCursor.getColumnIndex(RSSDatabaseAdapter.KEY_ITEM_ID)).equals(item_id)) {
+			mCurrentCursor.moveToNext();
+		}
+		adapter.setItemAsReaded(mCurrentCursor.getString(mCurrentCursor.getColumnIndex(RSSDatabaseAdapter.KEY_ITEM_ID)));
+		mPagerAdapter.notifyDataSetChanged();
+		mPager.setCurrentItem(mCurrentCursor.getPosition());
 	}
 
 	private void updatePager() {
@@ -158,94 +134,14 @@ public class ViewItemActivity extends ActionBarActivity {
 	@Override
 	protected void onStart() {
 		super.onStart();
-		adapter.open();
-		updatePager();
+//		adapter.open();
+//		updatePager();
 	}
 
 	@Override
 	protected void onStop() {
 		super.onStop();
 		adapter.close();
-	}
-
-	private void updateFeeds() {
-		ConnectivityManager connMgr = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-		NetworkInfo networkInfo = connMgr.getActiveNetworkInfo();
-		if (networkInfo != null && networkInfo.isConnected()) {
-			new UpdateFeeds().execute(source_id);
-		} else {
-			Toast toast = Toast.makeText(this, R.string.no_internet_connection, 1);
-			toast.show();
-		}
-	}
-
-	private class UpdateFeeds extends AsyncTask<String, Integer, Boolean> {
-		private RSSDatabaseAdapter adapter;
-		@Override
-		protected Boolean doInBackground(String... params) {
-			adapter = new RSSDatabaseAdapter(ViewItemActivity.this);
-			adapter.open();
-			String url = adapter.getURLbyID(params[0]);
-			InputStream stream;
-			try {
-				stream = downloadRSS(url);
-				parseRSS(stream);
-			} 
-			//TODO: handle exception
-			catch (IOException e) {
-			}
-			catch (XPathExpressionException e) {
-			}
-			catch (IllegalAccessError e) {		
-			}
-			adapter.close();
-			return null;
-		}
-
-		@Override
-		protected void onPostExecute(Boolean result) {
-			Toast toast = Toast.makeText(ViewItemActivity.this, R.string.update_completed, 1);
-			toast.show();
-		}
-
-		private void parseRSS(InputStream stream) throws XPathExpressionException {
-			XPath xPath = XPathFactory.newInstance().newXPath();
-			NodeList items = (NodeList) xPath.evaluate("/rss/channel/item", new InputSource(stream), XPathConstants.NODESET);
-			SimpleDateFormat dateFormat = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss Z", Locale.US);
-			for (Integer i=0; i<items.getLength();i++) {
-				Node node = items.item(i).cloneNode(true);
-				String title = xPath.evaluate("./title", node);
-				String link = xPath.evaluate("./link", node);
-				String pubDate = xPath.evaluate("./pubDate", node);
-				String description = xPath.evaluate("./description", node);
-				Date date;
-				try {
-					date = dateFormat.parse(pubDate);
-				} catch (ParseException e) {
-					date = new Date();
-					e.printStackTrace();
-				}
-				pubDate = String.valueOf(date.getTime() / 1000L);
-				adapter.addNewItem(link, title, 
-						pubDate, description, source_id);
-			}
-
-		}
-
-		private InputStream downloadRSS(String myurl) throws IOException, MalformedURLException, ProtocolException, IllegalAccessError {
-			InputStream is = null;
-
-			URL url = new URL(myurl);
-			HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-			conn.setReadTimeout(10000 /* milliseconds */);
-			conn.setConnectTimeout(15000 /* milliseconds */);
-			conn.setRequestMethod("GET");
-			conn.setDoInput(true);
-			conn.connect();
-			is = conn.getInputStream();
-
-			return is;
-		}
 	}
 
 	private class ScreenSlidePagerAdapter extends FragmentStatePagerAdapter {

@@ -102,5 +102,4 @@ public class RSSDatabaseAdapter {
     	values.put(KEY_ITEM_ISREADED, 1);
     	database.update(TABLE_ITEM, values, KEY_ITEM_ID + "=" + item_id, null);
     }
-
 }
